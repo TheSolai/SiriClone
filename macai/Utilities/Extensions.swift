@@ -176,7 +176,7 @@ extension PersistenceController {
         chat.name = "Sample Chat"
         chat.createdDate = Date()
         chat.updatedDate = Date()
-        chat.systemMessage = AppConstants.chatGptSystemMessage
+        chat.systemMessage = AppConstants.defaultAppleIntelligenceSystemMessage
         chat.gptModel = AppConstants.defaultPrimaryModel
         chat.lastSequence = 0
 

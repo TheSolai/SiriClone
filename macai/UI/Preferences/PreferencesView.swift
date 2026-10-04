@@ -1,22 +1,11 @@
 //
 //  PreferencesView.swift
-//  macai
+//  SiriClone
 //
-//  Created by Renat Notfullin on 11.03.2023.
+//  Apple Intelligence only — API Services tab replaced with Tools tab.
 //
 
-import Foundation
 import SwiftUI
-
-struct APIRequestData: Codable {
-    let model: String
-    let messages = [
-        [
-            "role": "system",
-            "content": "You are ChatGPT, a large language model trained by OpenAI. Say hi, if you're there",
-        ]
-    ]
-}
 
 struct PreferencesView: View {
     @StateObject private var store = ChatStore(persistenceController: PersistenceController.shared)
@@ -24,15 +13,14 @@ struct PreferencesView: View {
 
     var body: some View {
         TabView {
-
             TabGeneralSettingsView()
                 .tabItem {
                     Label("General", systemImage: "gearshape")
                 }
 
-            TabAPIServicesView()
+            TabToolsView()
                 .tabItem {
-                    Label("API Services", systemImage: "network")
+                    Label("Tools", systemImage: "wrench.and.screwdriver")
                 }
 
             TabAIPersonasView()
@@ -50,15 +38,13 @@ struct PreferencesView: View {
                     Label("Danger Zone", systemImage: "flame.fill")
                 }
         }
-        .frame(width: 480)
+        .frame(width: 520)
         .padding()
-        .onAppear(perform: {
+        .onAppear {
             store.saveInCoreData()
-
             if let window = NSApp.mainWindow {
                 window.standardWindowButton(.zoomButton)?.isEnabled = false
             }
-
-        })
+        }
     }
 }

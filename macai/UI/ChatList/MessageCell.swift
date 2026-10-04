@@ -184,7 +184,7 @@ struct MessageCell_Previews: PreviewProvider {
         chat.isPinned = isPinned
         chat.createdDate = Date()
         chat.updatedDate = Date()
-        chat.systemMessage = AppConstants.chatGptSystemMessage
+        chat.systemMessage = AppConstants.defaultAppleIntelligenceSystemMessage
         chat.gptModel = AppConstants.defaultPrimaryModel
         chat.lastSequence = 0
         return chat

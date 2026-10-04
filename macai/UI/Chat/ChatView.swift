@@ -1,9 +1,10 @@
 //
 //  ChatView.swift
-//  macai
-
+//  SiriClone
 //
-//  Created by Renat Notfullin on 18.03.2023.
+//  Apple Intelligence only — image / PDF upload gates and image
+//  generation gates removed. Foundation Models doesn't support image
+//  uploads natively in this build.
 //
 
 import CoreData
@@ -15,8 +16,7 @@ struct ChatView: View {
     @State var chat: ChatEntity
     @Binding var searchText: String
     @AppStorage("lastOpenedChatId") var lastOpenedChatId = ""
-    
-    // UI State
+
     @State private var messageField = ""
     @State private var newMessage: String = ""
     @State private var editSystemMessage: Bool = false
@@ -28,29 +28,24 @@ struct ChatView: View {
     @State private var reasoningDurations: [NSManagedObjectID: TimeInterval] = [:]
     @State private var lastRequestStartTime: Date?
     @State private var activeReasoningMessageID: NSManagedObjectID?
-    
-    // View models and logic
+
     @StateObject private var chatViewModel: ChatViewModel
     @StateObject private var store = ChatStore(persistenceController: PersistenceController.shared)
     @StateObject private var logicHandler: ChatLogicHandler
     @StateObject private var draftManager: ChatDraftManager
-    
-    // Environment
+
     @Environment(\.colorScheme) private var colorScheme
     var backgroundColor = Color(NSColor.controlBackgroundColor)
     private let reasoningTimer = Timer.publish(every: 0.1, on: .main, in: .common).autoconnect()
-    
-    // MARK: - Initialization
+
     init(viewContext: NSManagedObjectContext, chat: ChatEntity, searchText: Binding<String>) {
         self.viewContext = viewContext
         self._chat = State(initialValue: chat)
         self._searchText = searchText
 
-        // Initialize view models
         let viewModel = ChatViewModel(chat: chat, viewContext: viewContext)
         self._chatViewModel = StateObject(wrappedValue: viewModel)
-        
-        // Initialize logic handler
+
         let store = ChatStore(persistenceController: PersistenceController.shared)
         let handler = ChatLogicHandler(viewContext: viewContext, chat: chat, chatViewModel: viewModel, store: store)
         self._logicHandler = StateObject(wrappedValue: handler)
@@ -68,17 +63,12 @@ struct ChatView: View {
         self._attachedFiles = State(initialValue: attachmentSnapshot.files)
     }
 
-    private var pdfUploadsAllowed: Bool {
-        chat.apiService?.pdfUploadsAllowed ?? false
-    }
-
-    private var imageUploadsAllowed: Bool {
-        chat.apiService?.imageUploadsAllowed ?? false
-    }
-
-    private var imageGenerationSupported: Bool {
-        chat.apiService?.imageGenerationSupported ?? false
-    }
+    /// Apple Intelligence doesn't ingest images/PDFs natively in this build.
+    /// These gates are hard-coded off so the chat input doesn't pretend to
+    /// support them.
+    private var pdfUploadsAllowed: Bool { false }
+    private var imageUploadsAllowed: Bool { false }
+    private var imageGenerationSupported: Bool { false }
 
     private var isInferenceInProgress: Bool {
         logicHandler.isStreaming || chat.waitingForResponse
@@ -94,18 +84,15 @@ struct ChatView: View {
         )
     }
 
-    // MARK: - Body
     var body: some View {
         VStack(spacing: 0) {
             chatMessagesView
             chatInputView
         }
         .background(backgroundColor)
-        .navigationTitle(chat.name != "" ? chat.name : chat.persona?.name ?? "macai LLM chat")
+        .navigationTitle(chat.name != "" ? chat.name : chat.persona?.name ?? "SiriClone")
         .onAppear(perform: {
             self.lastOpenedChatId = chat.id.uuidString
-            print("lastOpenedChatId: \(lastOpenedChatId)")
-            Self._printChanges()
             DispatchQueue.main.asyncAfter(deadline: .now()) {
                 let startTime = CFAbsoluteTimeGetCurrent()
                 _ = self.body
@@ -122,10 +109,7 @@ struct ChatView: View {
             )
         }
         .onReceive(NotificationCenter.default.publisher(for: NSNotification.Name("RecreateMessageManager"))) { notification in
-            if let chatId = notification.userInfo?["chatId"] as? UUID,
-                chatId == chat.id
-            {
-                print("RecreateMessageManager notification received for chat \(chatId)")
+            if let chatId = notification.userInfo?["chatId"] as? UUID, chatId == chat.id {
                 chatViewModel.recreateMessageManager()
             }
         }
@@ -141,14 +125,10 @@ struct ChatView: View {
             logicHandler.ignoreError()
         }
         .onReceive(NotificationCenter.default.publisher(for: NSNotification.Name("FindNext"))) { _ in
-            if !searchText.isEmpty {
-                chatViewModel.goToNextOccurrence()
-            }
+            if !searchText.isEmpty { chatViewModel.goToNextOccurrence() }
         }
         .onReceive(NotificationCenter.default.publisher(for: NSNotification.Name("FindPrevious"))) { _ in
-            if !searchText.isEmpty {
-                chatViewModel.goToPreviousOccurrence()
-            }
+            if !searchText.isEmpty { chatViewModel.goToPreviousOccurrence() }
         }
         .onReceive(NotificationCenter.default.publisher(for: NSNotification.Name("ChatResponseCompleted"))) { notification in
             guard let notificationChat = notification.object as? ChatEntity, notificationChat == chat else { return }
@@ -179,9 +159,7 @@ struct ChatView: View {
         }
         .onChange(of: chatViewModel.sortedMessages.count) { newCount in
             if newCount == 1 {
-                withAnimation {
-                    isBottomContainerExpanded = false
-                }
+                withAnimation { isBottomContainerExpanded = false }
             }
         }
         .onChange(of: chat.lastMessage?.body) { _ in
@@ -189,9 +167,7 @@ struct ChatView: View {
             updateReasoningTiming(for: lastMessage, isStreamingActive: logicHandler.isStreaming)
         }
         .onExitCommand {
-            if editSystemMessage {
-                cancelSystemMessageEdit()
-            }
+            if editSystemMessage { cancelSystemMessageEdit() }
         }
     }
 
@@ -246,17 +222,13 @@ struct ChatView: View {
 
     private func handleAddImage() {
         logicHandler.selectAndAddImages { newAttachments in
-            withAnimation {
-                attachedImages.append(contentsOf: newAttachments)
-            }
+            withAnimation { attachedImages.append(contentsOf: newAttachments) }
         }
     }
 
     private func handleAddFile() {
         logicHandler.selectAndAddPDFs { newAttachments in
-            withAnimation {
-                attachedFiles.append(contentsOf: newAttachments)
-            }
+            withAnimation { attachedFiles.append(contentsOf: newAttachments) }
         }
     }
 
@@ -284,12 +256,8 @@ struct ChatView: View {
     private func updateReasoningTiming(for message: MessageEntity, isStreamingActive: Bool) {
         let body = message.body
         guard body.contains("<think>") else { return }
-
         let messageID = message.objectID
-        if message.reasoningDuration > 0 {
-            return
-        }
-
+        if message.reasoningDuration > 0 { return }
         if reasoningStartTimes[messageID] == nil {
             guard isStreamingActive || lastRequestStartTime != nil else { return }
             let startTime = isStreamingActive ? Date() : (lastRequestStartTime ?? Date())
@@ -297,7 +265,6 @@ struct ChatView: View {
             activeReasoningMessageID = messageID
             reasoningDurations[messageID] = 0
         }
-
         if body.contains("</think>"), let startTime = reasoningStartTimes[messageID] {
             let duration = max(0, Date().timeIntervalSince(startTime))
             reasoningDurations[messageID] = duration
@@ -357,17 +324,11 @@ struct SearchNavigationView: View {
                 Text("\(currentIndex + 1) of \(chatViewModel.searchOccurrences.count)")
                     .font(.system(size: 12))
             }
-
-            Button(action: {
-                chatViewModel.goToPreviousOccurrence()
-            }) {
+            Button(action: { chatViewModel.goToPreviousOccurrence() }) {
                 Image(systemName: "chevron.up")
             }
             .disabled(chatViewModel.searchOccurrences.isEmpty)
-
-            Button(action: {
-                chatViewModel.goToNextOccurrence()
-            }) {
+            Button(action: { chatViewModel.goToNextOccurrence() }) {
                 Image(systemName: "chevron.down")
             }
             .disabled(chatViewModel.searchOccurrences.isEmpty)
@@ -375,10 +336,8 @@ struct SearchNavigationView: View {
     }
 }
 
-// MARK: - Measure Modifier
 struct MeasureModifier: ViewModifier {
     @Binding var renderTime: Double
-
     func body(content: Content) -> some View {
         content
             .onAppear {
@@ -386,9 +345,8 @@ struct MeasureModifier: ViewModifier {
                 DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
                     let end = DispatchTime.now()
                     let nanoTime = end.uptimeNanoseconds - start.uptimeNanoseconds
-                    let timeInterval = Double(nanoTime) / 1_000_000  // Convert to milliseconds
+                    let timeInterval = Double(nanoTime) / 1_000_000
                     renderTime = timeInterval
-                    print("Render time: \(timeInterval) ms")
                 }
             }
     }

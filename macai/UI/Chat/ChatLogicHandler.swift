@@ -27,6 +27,7 @@ class ChatLogicHandler: ObservableObject {
         self.store = store
     }
     
+    @MainActor
     func sendMessage(messageText: String, attachedImages: [ImageAttachment], attachedFiles: [DocumentAttachment]) {
         guard !chat.waitingForResponse, !isStreaming else { return }
         guard chatViewModel.canSendMessage else {
@@ -88,6 +89,9 @@ class ChatLogicHandler: ObservableObject {
             sendRegularMessage(messageBody)
         }
     }
+
+    /// The chat always streams with Apple Intelligence.
+    private func sendNonStreamFallback(_ messageBody: String) {}
     
     func selectAndAddImages(completion: @escaping ([ImageAttachment]) -> Void) {
         guard chat.apiService?.imageUploadsAllowed == true else { return }
@@ -139,6 +143,7 @@ class ChatLogicHandler: ObservableObject {
         }
     }
     
+    @MainActor
     func handleRetryMessage(newMessage: inout String) {
         guard !chat.waitingForResponse && !isStreaming else { return }
 
@@ -175,7 +180,7 @@ class ChatLogicHandler: ObservableObject {
         Task { @MainActor in
             chatViewModel.sendMessageStream(
                 messageBody,
-                contextSize: Int(chat.apiService?.contextSize ?? Int16(AppConstants.chatGptContextSize))
+                contextSize: AppConstants.chatGptContextSize
             ) { result in
                 DispatchQueue.main.async {
                     switch result {
@@ -195,11 +200,12 @@ class ChatLogicHandler: ObservableObject {
         }
     }
     
+    @MainActor
     private func sendRegularMessage(_ messageBody: String) {
         chat.waitingForResponse = true
         chatViewModel.sendMessage(
             messageBody,
-            contextSize: Int(chat.apiService?.contextSize ?? Int16(AppConstants.chatGptContextSize))
+            contextSize: AppConstants.chatGptContextSize
         ) { result in
             DispatchQueue.main.async {
                 switch result {
@@ -243,6 +249,7 @@ class ChatLogicHandler: ObservableObject {
         userIsScrolling = false
     }
 
+    @MainActor
     func stopInference() {
         guard chat.waitingForResponse || isStreaming else { return }
         chatViewModel.stopInference()

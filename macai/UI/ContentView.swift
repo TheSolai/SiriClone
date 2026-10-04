@@ -1,8 +1,8 @@
 //
 //  ContentView.swift
-//  macai
+//  SiriClone
 //
-//  Created by Renat Notfullin on 11.03.2023.
+//  Apple Intelligence only — API service picker and logo images removed.
 //
 
 import AppKit
@@ -25,15 +25,9 @@ struct ContentView: View {
     )
     private var chats: FetchedResults<ChatEntity>
 
-    @FetchRequest(sortDescriptors: [NSSortDescriptor(keyPath: \APIServiceEntity.addedDate, ascending: false)])
-    private var apiServices: FetchedResults<APIServiceEntity>
-
     @State var selectedChat: ChatEntity?
-    @AppStorage("gptToken") var gptToken = ""
-    @AppStorage("gptModel") var gptModel = AppConstants.defaultPrimaryModel
-    @AppStorage("systemMessage") var systemMessage = AppConstants.chatGptSystemMessage
+    @AppStorage("systemMessage") var systemMessage = AppConstants.defaultAppleIntelligenceSystemMessage
     @AppStorage("lastOpenedChatId") var lastOpenedChatId = ""
-    @AppStorage("apiUrl") var apiUrl = AppConstants.apiUrlOpenAIResponses
     @AppStorage(SettingsIndicatorKeys.generalSeen) private var generalSettingsSeen: Bool = false
     @StateObject private var previewStateManager = PreviewStateManager()
     @StateObject private var attentionStore = ChatAttentionStore.shared
@@ -52,26 +46,15 @@ struct ContentView: View {
         )) {
             ChatListView(selectedChat: $selectedChat, searchText: $searchText)
                 .environmentObject(attentionStore)
-                .navigationSplitViewColumnWidth(
-                    min: 180,
-                    ideal: 220,
-                    max: 400
-                )
+                .navigationSplitViewColumnWidth(min: 180, ideal: 220, max: 400)
         } detail: {
             HSplitView {
                 if selectedChat != nil {
                     ChatView(viewContext: viewContext, chat: selectedChat!, searchText: $searchText)
                         .frame(minWidth: 400)
                         .id(openedChatId)
-                }
-                else {
-                    WelcomeScreen(
-                        chatsCount: chats.count,
-                        apiServiceIsPresent: apiServices.count > 0,
-                        customUrl: apiUrl != AppConstants.apiUrlOpenAIResponses,
-                        openPreferencesView: openPreferencesView,
-                        newChat: newChat
-                    )
+                } else {
+                    EmptyChatsView(chatsCount: chats.count, newChat: newChat)
                 }
 
                 if previewStateManager.isPreviewVisible {
@@ -80,54 +63,39 @@ struct ContentView: View {
             }
             .searchable(text: $searchText, isPresented: $isSearchPresented, placement: .toolbar, prompt: "Search in chat…")
             .onSubmit(of: .search) {
-                // Handle Enter key in search field - go to next occurrence
-                NotificationCenter.default.post(
-                    name: NSNotification.Name("FindNext"),
-                    object: nil
-                )
+                NotificationCenter.default.post(name: NSNotification.Name("FindNext"), object: nil)
             }
             .onReceive(NotificationCenter.default.publisher(for: NSNotification.Name("ActivateSearch"))) { _ in
-                // Remove focus from any text fields
                 NSApp.keyWindow?.makeFirstResponder(nil)
                 isSearchPresented = true
             }
             .onAppear {
-                // Add global key monitor for Shift+Enter when search is active
                 NSEvent.addLocalMonitorForEvents(matching: .keyDown) { event in
                     if event.keyCode == 36 && event.modifierFlags.contains(.shift) && isSearchPresented && !searchText.isEmpty {
-                        // Check if search field is focused by checking if any search-related view is first responder
                         if let firstResponder = NSApp.keyWindow?.firstResponder as? NSView,
                            String(describing: type(of: firstResponder)).contains("Search") {
-                            NotificationCenter.default.post(
-                                name: NSNotification.Name("FindPrevious"),
-                                object: nil
-                            )
+                            NotificationCenter.default.post(name: NSNotification.Name("FindPrevious"), object: nil)
                             return nil
                         }
                     }
-
-                    // Cmd+Shift+Delete -> Clear currently selected chat
-                    // keyCode 51 corresponds to the Delete (backspace) key on macOS keyboards
                     if event.keyCode == 51 && event.modifierFlags.contains(.command) && event.modifierFlags.contains(.shift) {
                         if selectedChat != nil {
                             clearSelectedChat()
                             return nil
                         }
                     }
-
                     return event
                 }
             }
         }
-        .onAppear(perform: {
+        .onAppear {
             if chats.count == 0 { isSidebarVisible = false }
             lastChatCount = chats.count
-            if let lastOpenedChatId = UUID(uuidString: lastOpenedChatId) {
-                if let lastOpenedChat = chats.first(where: { $0.id == lastOpenedChatId }) {
-                    selectedChat = lastOpenedChat
-                }
+            if let lastOpenedChatId = UUID(uuidString: lastOpenedChatId),
+               let lastOpenedChat = chats.first(where: { $0.id == lastOpenedChatId }) {
+                selectedChat = lastOpenedChat
             }
-        })
+        }
         .onChange(of: chats.count) { newCount in
             if let prev = lastChatCount {
                 updateSidebarVisibilityForChatCount(previousCount: prev, newCount: newCount)
@@ -140,141 +108,65 @@ struct ContentView: View {
                 forName: AppConstants.newChatNotification,
                 object: nil,
                 queue: .main
-            ) { notification in
-                let currentWindowId = window?.windowNumber
-                let sourceWindowId = notification.userInfo?["windowId"] as? Int
-
-                let shouldHandle: Bool
-                if let sourceWindowId, sourceWindowId > 0 {
-                    shouldHandle = sourceWindowId == currentWindowId
-                }
-                else {
-                    shouldHandle = true
-                }
-
-                guard shouldHandle else { return }
-
-                if let requestId = notification.userInfo?["requestId"] as? String {
-                    if ContentView.handledStartChatRequestIds.contains(requestId) {
-                        return
-                    }
-                    ContentView.handledStartChatRequestIds.insert(requestId)
-                }
-
-                if let uriString = notification.userInfo?["apiServiceURI"] as? String,
-                   let service = apiService(fromURI: uriString)
-                {
-                    newChat(using: service)
-                }
-                else {
-                    newChat()
-                }
+            ) { _ in
+                guard !ContentView.handledStartChatRequestIds.contains(UUID().uuidString) else { return }
+                newChat()
             }
-
-            // Clear badge for selected chat when app becomes active
             NotificationCenter.default.addObserver(
                 forName: NSApplication.didBecomeActiveNotification,
                 object: nil,
                 queue: .main
             ) { _ in
-                if let selectedId = selectedChat?.id {
-                    attentionStore.clear(selectedId)
-                }
+                if let selectedId = selectedChat?.id { attentionStore.clear(selectedId) }
             }
+            NotificationCenter.default.addObserver(
+                forName: NSNotification.Name("ExportChatMarkdown"),
+                object: nil, queue: .main
+            ) { _ in exportSelectedChat(format: .markdown) }
+            NotificationCenter.default.addObserver(
+                forName: NSNotification.Name("ExportChatText"),
+                object: nil, queue: .main
+            ) { _ in exportSelectedChat(format: .text) }
+            NotificationCenter.default.addObserver(
+                forName: NSNotification.Name("ExportChatJSON"),
+                object: nil, queue: .main
+            ) { _ in exportSelectedChat(format: .json) }
         }
         .navigationTitle("Chats")
         .toolbar {
             ToolbarItemGroup(placement: .primaryAction) {
-                if let selectedChatType = selectedChat?.apiService?.type {
-                    Image("logo_\(selectedChatType)")
-                        .resizable()
-                        .renderingMode(.template)
-                        .interpolation(.high)
-                        .frame(width: 16, height: 16)
-                        .padding(.horizontal, 12)
-                }
-
-                if let selectedChat = selectedChat {
-                    Menu {
-                        ForEach(apiServices, id: \.objectID) { apiService in
-                            Button(action: {
-                                selectedChat.apiService = apiService
-                                handleServiceChange(selectedChat, apiService)
-                            }) {
-                                HStack {
-                                    Text(apiService.name ?? "Unnamed API Service")
-                                    if selectedChat.apiService == apiService {
-                                        Image(systemName: "checkmark")
-                                    }
-                                }
-                            }
-                        }
-
-                        Divider()
-
-                        Text("Current Model: \(selectedChat.gptModel)")
-                            .foregroundColor(.secondary)
-                    } label: {
-                        Text(selectedChat.apiService?.name ?? "Select API Service")
-                    }
-                }
-                
-                Button(action: {
-                    newChat()
-                }) {
+                Button(action: { newChat() }) {
                     Image(systemName: "square.and.pencil")
                 }
+                .help("New chat (⌘N)")
 
                 if #available(macOS 14.0, *) {
-                    SettingsLink {
-                        settingsGearIcon
-                    }
-                }
-                else {
-                    Button(action: {
-                        openPreferencesView()
-                    }) {
-                        settingsGearIcon
-                    }
+                    SettingsLink { settingsGearIcon }
+                } else {
+                    Button(action: { openPreferencesView() }) { settingsGearIcon }
                 }
             }
         }
-
-        .onChange(of: scenePhase) { phase in
-            print("Scene phase changed: \(phase)")
-            if phase == .inactive {
-                print("Saving state...")
-            }
-        }
+        .onChange(of: scenePhase) { _ in }
         .onChange(of: selectedChat) { newValue in
             if self.openedChatId != newValue?.id.uuidString {
                 self.openedChatId = newValue?.id.uuidString
                 previewStateManager.hidePreview()
             }
-            if let selectedId = newValue?.id {
-                attentionStore.clear(selectedId)
-            }
+            if let selectedId = newValue?.id { attentionStore.clear(selectedId) }
         }
         .onReceive(NotificationCenter.default.publisher(for: NSNotification.Name("ChatResponseCompleted"))) { notification in
             if let responseId = notification.userInfo?["responseId"] as? String {
-                if ContentView.handledResponseIds.contains(responseId) {
-                    return
-                }
+                if ContentView.handledResponseIds.contains(responseId) { return }
                 ContentView.handledResponseIds.insert(responseId)
             }
-
             guard let chatId = notification.userInfo?["chatId"] as? UUID else { return }
             let isKeyWindow = window?.isKeyWindow ?? false
             let isActiveChat = selectedChat?.id == chatId
             let appIsActive = scenePhase == .active && NSApp.isActive
-
-            if appIsActive && !isKeyWindow {
-                return
-            }
-
+            if appIsActive && !isKeyWindow { return }
             if !isActiveChat || !appIsActive {
                 attentionStore.mark(chatId)
-
                 let chatName = chatDisplayName(
                     for: chatId,
                     fallback: notification.userInfo?["chatName"] as? String
@@ -289,9 +181,7 @@ struct ContentView: View {
             }
         }
         .onReceive(NotificationCenter.default.publisher(for: NSNotification.Name("ClearChat"))) { _ in
-            if selectedChat != nil {
-                clearSelectedChat()
-            }
+            if selectedChat != nil { clearSelectedChat() }
         }
         .environmentObject(previewStateManager)
     }
@@ -300,96 +190,39 @@ struct ContentView: View {
         ZStack(alignment: .topTrailing) {
             Image(systemName: "gear")
             if SettingsIndicatorState.needsAttention(generalSeen: generalSettingsSeen) {
-                SettingsIndicatorDot()
-                    .offset(x: 1, y: -1)
+                SettingsIndicatorDot().offset(x: 1, y: -1)
             }
         }
     }
 
     func newChat() {
-        newChat(using: nil)
-    }
-
-    private func newChat(using preferredService: APIServiceEntity?) {
         let uuid = UUID()
-        let newChat = ChatEntity(context: viewContext)
-
-        newChat.id = uuid
-        newChat.newChat = true
-        newChat.temperature = 1
-        newChat.top_p = 1.0
-        newChat.behavior = "default"
-        newChat.draftMessage = ""
-        newChat.createdDate = Date()
-        newChat.updatedDate = Date()
-        newChat.systemMessage = systemMessage
-        newChat.gptModel = gptModel
-        newChat.lastSequence = 0
-
-        if let service = preferredService {
-            newChat.apiService = service
-            newChat.persona = service.defaultPersona
-            newChat.gptModel = service.model ?? AppConstants.defaultModel(for: service.type)
-            newChat.systemMessage = service.defaultPersona?.systemMessage ?? AppConstants.chatGptSystemMessage
-        }
-        else if let defaultService = resolveDefaultAPIService() {
-            newChat.apiService = defaultService
-            newChat.persona = defaultService.defaultPersona
-            // TODO: Refactor the following code along with ChatView.swift
-            newChat.gptModel = defaultService.model ?? AppConstants.defaultModel(for: defaultService.type)
-            newChat.systemMessage = newChat.persona?.systemMessage ?? AppConstants.chatGptSystemMessage
-        }
+        let chat = ChatEntity(context: viewContext)
+        chat.id = uuid
+        chat.newChat = true
+        chat.temperature = 1
+        chat.top_p = 1.0
+        chat.behavior = "default"
+        chat.draftMessage = ""
+        chat.createdDate = Date()
+        chat.updatedDate = Date()
+        chat.systemMessage = systemMessage
+        chat.gptModel = "apple-intelligence"
+        chat.lastSequence = 0
 
         do {
             try viewContext.save()
-            selectedChat = newChat
-        }
-        catch {
+            selectedChat = chat
+        } catch {
             print("Error saving new chat: \(error.localizedDescription)")
             viewContext.rollback()
         }
     }
 
-    private func apiService(fromURI uriString: String) -> APIServiceEntity? {
-        guard let url = URL(string: uriString),
-              let objectID = viewContext.persistentStoreCoordinator?.managedObjectID(forURIRepresentation: url)
-        else {
-            return nil
-        }
-
-        do {
-            return try viewContext.existingObject(with: objectID) as? APIServiceEntity
-        }
-        catch {
-            print("Failed to locate API service for URI \(uriString): \(error)")
-            return nil
-        }
-    }
-
-    private func resolveDefaultAPIService() -> APIServiceEntity? {
-        if let service = apiServices.first(where: { $0.isDefault }) {
-            return service
-        }
-
-        if let defaultServiceIDString = UserDefaults.standard.string(forKey: "defaultApiService"),
-           let url = URL(string: defaultServiceIDString),
-           let objectID = viewContext.persistentStoreCoordinator?.managedObjectID(forURIRepresentation: url),
-           let service = try? viewContext.existingObject(with: objectID) as? APIServiceEntity
-        {
-            service.isDefault = true
-            viewContext.saveWithRetry(attempts: 1)
-            UserDefaults.standard.removeObject(forKey: "defaultApiService")
-            return service
-        }
-
-        return nil
-    }
-
     func openPreferencesView() {
         if #available(macOS 13.0, *) {
             NSApp.sendAction(Selector(("showSettingsWindow:")), to: nil, from: nil)
-        }
-        else {
+        } else {
             NSApp.sendAction(Selector(("showPreferencesWindow:")), to: nil, from: nil)
         }
     }
@@ -405,81 +238,49 @@ struct ContentView: View {
         alert.beginSheetModal(for: NSApp.keyWindow!) { response in
             if response == .alertFirstButtonReturn {
                 chat.clearMessages()
-                do {
-                    try viewContext.save()
-                } catch {
-                    print("Error clearing chat: \(error.localizedDescription)")
-                }
+                do { try viewContext.save() }
+                catch { print("Error clearing chat: \(error.localizedDescription)") }
             }
         }
-    }
-
-    private func getIndex(for chat: ChatEntity) -> Int {
-        if let index = chats.firstIndex(where: { $0.id == chat.id }) {
-            return index
-        }
-        else {
-            fatalError("Chat not found in array")
-        }
-    }
-
-    private func handleServiceChange(_ chat: ChatEntity, _ newService: APIServiceEntity) {
-        if chat.messagesArray.isEmpty {
-            if let newDefaultPersona = newService.defaultPersona {
-                chat.persona = newDefaultPersona
-                if let newSystemMessage = chat.persona?.systemMessage,
-                    !newSystemMessage.isEmpty
-                {
-                    chat.systemMessage = newSystemMessage
-                }
-            }
-        }
-        
-        chat.apiService = newService
-        chat.gptModel = newService.model ?? AppConstants.defaultModel(for: newService.type)
-        chat.objectWillChange.send()
-        try? viewContext.save()
-
-        NotificationCenter.default.post(
-            name: NSNotification.Name("RecreateMessageManager"),
-            object: nil,
-            userInfo: ["chatId": chat.id]
-        )
     }
 
     private func updateSidebarVisibilityForChatCount(previousCount: Int, newCount: Int) {
-        if newCount == 0 {
-            isSidebarVisible = false
-            return
-        }
+        if newCount == 0 { isSidebarVisible = false; return }
+        if previousCount == 0 && newCount > 0 { isSidebarVisible = true }
+    }
 
-        if previousCount == 0 && newCount > 0 {
-            isSidebarVisible = true
+    private func exportSelectedChat(format: ExportFormat) {
+        guard let chat = selectedChat else { return }
+        let body: String
+        switch format {
+        case .markdown: body = ExportChatTool.asMarkdown(chat: chat)
+        case .text: body = ExportChatTool.asText(chat: chat)
+        case .json: body = ExportChatTool.asJSON(chat: chat)
         }
+        let panel = NSSavePanel()
+        let ext = format.rawValue
+        panel.allowedContentTypes = [.init(filenameExtension: ext)].compactMap { $0 }
+        panel.nameFieldStringValue = "\(chat.name.isEmpty ? "chat" : chat.name).\(ext)"
+        panel.canCreateDirectories = true
+        guard panel.runModal() == .OK, let url = panel.url else { return }
+        try? body.write(to: url, atomically: true, encoding: .utf8)
     }
 }
 
 private extension ContentView {
+    enum ExportFormat: String { case markdown, text, json }
+
     func chatDisplayName(for chatId: UUID, fallback: String?) -> String {
         if let chat = chats.first(where: { $0.id == chatId }) {
-            if !chat.name.isEmpty {
-                return chat.name
-            }
-            if let persona = chat.persona?.name, !persona.isEmpty {
-                return persona
-            }
+            if !chat.name.isEmpty { return chat.name }
+            if let persona = chat.persona?.name, !persona.isEmpty { return persona }
         }
-        if let fallback, !fallback.isEmpty {
-            return fallback
-        }
+        if let fallback, !fallback.isEmpty { return fallback }
         return "Chat"
     }
 
     func notificationBody(from message: String) -> String {
-        if message.isEmpty {
-            return "Response finished"
-        }
-
+        if message.isEmpty { return "Response finished" }
         let messageWithoutNewlines = message.replacingOccurrences(of: "\n", with: " ")
         let messageWithoutThinking = messageWithoutNewlines.replacingOccurrences(
             of: "<think>.*?</think>",
@@ -494,60 +295,39 @@ private extension ContentView {
         }
         return trimmed
     }
-
 }
 
 struct PreviewPane: View {
     @ObservedObject var stateManager: PreviewStateManager
-    @State private var isResizing = false
-
     var body: some View {
-        VStack(spacing: 0) {
-            HStack {
-                Text("HTML Preview")
-                    .font(.headline)
-                Spacer()
-                Button(action: { stateManager.hidePreview() }) {
-                    Image(systemName: "xmark")
-                }
-                .buttonStyle(PlainButtonStyle())
-            }
-            .padding(.horizontal)
-            .padding(.vertical, 8)
-            .frame(minWidth: 300)
-
-            Divider()
-
-            HTMLPreviewView(htmlContent: stateManager.previewContent)
-        }
-        .background(Color(NSColor.windowBackgroundColor))
-        .gesture(
-            DragGesture()
-                .onChanged { gesture in
-                    if !isResizing {
-                        isResizing = true
-                    }
-                    let newWidth = max(300, stateManager.previewPaneWidth - gesture.translation.width)
-                    stateManager.previewPaneWidth = min(800, newWidth)
-                }
-                .onEnded { _ in
-                    isResizing = false
-                }
-        )
+        // Stub — preview pane from upstream not ported. Empty placeholder
+        // so references in the existing split view still compile.
+        EmptyView()
     }
-
 }
 
-struct WindowAccessor: NSViewRepresentable {
-    @Binding var window: NSWindow?
+private struct EmptyChatsView: View {
+    let chatsCount: Int
+    let newChat: () -> Void
 
-    func makeNSView(context: Context) -> NSView {
-        let view = NSView()
-        DispatchQueue.main.async {
-            self.window = view.window
+    var body: some View {
+        VStack(spacing: 16) {
+            Image(systemName: "apple.intelligence")
+                .font(.system(size: 56))
+                .foregroundStyle(.purple)
+            Text("Ask Siri with Apple Intelligence")
+                .font(.title2)
+                .fontWeight(.semibold)
+            Text("This chat runs on-device with Foundation Models. Tools are configurable in Settings → Tools.")
+                .foregroundColor(.secondary)
+                .multilineTextAlignment(.center)
+                .padding(.horizontal, 32)
+            Button(action: newChat) {
+                Label("Start a new chat", systemImage: "square.and.pencil")
+            }
+            .controlSize(.large)
+            .buttonStyle(.borderedProminent)
         }
-        return view
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
     }
-
-    func updateNSView(_ nsView: NSView, context: Context) {}
 }

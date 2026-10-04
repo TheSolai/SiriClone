@@ -1,8 +1,8 @@
 //
 //  TabDangerZoneView.swift
-//  macai
+//  SiriClone
 //
-//  Created by Renat Notfullin on 11.11.2023.
+//  Apple Intelligence only — no API services section.
 //
 
 import SwiftUI
@@ -12,7 +12,7 @@ struct DangerZoneView: View {
     @State private var currentAlert: AlertType?
 
     enum AlertType: Identifiable {
-        case deleteChats, deletePersonas, deleteAPIServices
+        case deleteChats, deletePersonas
         var id: Self { self }
     }
 
@@ -20,7 +20,7 @@ struct DangerZoneView: View {
         VStack(alignment: .leading) {
             HStack {
                 Text(
-                    "Here you can remove all chats, AI Assistants and API Services. Use with caution: this action cannot be undone."
+                    "Here you can remove all chats and AI Assistants. Use with caution: this action cannot be undone."
                 )
                 .foregroundColor(.gray)
                 .fixedSize(horizontal: false, vertical: true)
@@ -30,26 +30,13 @@ struct DangerZoneView: View {
 
             VStack(alignment: .leading) {
                 Button(
-                    action: {
-                        currentAlert = .deleteChats
-                    },
-                    label: {
-                        Text("Delete all chats")
-                    }
+                    action: { currentAlert = .deleteChats },
+                    label: { Text("Delete all chats") }
                 )
-                Button(action: {
-                    currentAlert = .deletePersonas
-                }) {
+                Button(action: { currentAlert = .deletePersonas }) {
                     Text("Delete all AI Assistants")
                 }
-                Button(action: {
-                    currentAlert = .deleteAPIServices
-                }) {
-                    Text("Delete all API Services")
-                }
-
             }
-
         }
         .padding(32)
         .alert(item: $currentAlert) { alertType in
@@ -58,27 +45,14 @@ struct DangerZoneView: View {
                 return Alert(
                     title: Text("Delete All Chats"),
                     message: Text("Are you sure you want to delete all chats? This action cannot be undone."),
-                    primaryButton: .destructive(Text("Delete")) {
-                        store.deleteAllChats()
-                    },
+                    primaryButton: .destructive(Text("Delete")) { store.deleteAllChats() },
                     secondaryButton: .cancel()
                 )
             case .deletePersonas:
                 return Alert(
                     title: Text("Delete All AI Assistants"),
                     message: Text("Are you sure you want to delete all AI Assistants?"),
-                    primaryButton: .destructive(Text("Delete")) {
-                        store.deleteAllPersonas()
-                    },
-                    secondaryButton: .cancel()
-                )
-            case .deleteAPIServices:
-                return Alert(
-                    title: Text("Delete All API Services"),
-                    message: Text("Are you sure you want to delete all API Services?"),
-                    primaryButton: .destructive(Text("Delete")) {
-                        store.deleteAllAPIServices()
-                    },
+                    primaryButton: .destructive(Text("Delete")) { store.deleteAllPersonas() },
                     secondaryButton: .cancel()
                 )
             }
