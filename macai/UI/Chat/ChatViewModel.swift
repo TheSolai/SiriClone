@@ -65,7 +65,7 @@ final class ChatViewModel: NSObject, ObservableObject, NSFetchedResultsControlle
         self.messages = chat.messages
         self.viewContext = viewContext
 
-        let fetchRequest = ChatEntity.fetchRequest() as! NSFetchRequest<MessageEntity>
+        let fetchRequest = NSFetchRequest<MessageEntity>(entityName: "MessageEntity")
         fetchRequest.predicate = NSPredicate(format: "chat == %@", chat)
         fetchRequest.sortDescriptors = chat.messageSortDescriptors
 

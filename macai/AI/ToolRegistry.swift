@@ -3,8 +3,8 @@
 //  SiriClone
 //
 //  Holds the set of Foundation Models `Tool` instances the on-device model
-//  can invoke. Per-chat tools come from settings (enabled flags), not from
-//  the chat itself.
+//  can invoke. Full system admin: every tool defaults to ON. Per-tool
+//  disable flags live in UserDefaults.
 //
 
 import Foundation
@@ -20,9 +20,6 @@ final class ToolRegistry {
 
     private init() {}
 
-    /// Tool metadata the user can enable/disable in Settings. Concrete
-    /// instances are built fresh per chat so they can capture the active
-    /// Core Data context.
     struct Definition {
         let id: String
         let name: String  // Foundation Models Tool name
@@ -34,14 +31,17 @@ final class ToolRegistry {
     enum Category: String, CaseIterable {
         case filesystem
         case shell
+        case system
+        case apple
         case export
     }
 
     let all: [Definition] = [
+        // Files
         Definition(
             id: "file.write",
             name: "write_file",
-            description: "Create or overwrite a text file at a path the user chooses.",
+            description: "Create or overwrite a text file at any path on this Mac.",
             category: .filesystem,
             make: { _ in FileWriteTool() }
         ),
@@ -59,13 +59,51 @@ final class ToolRegistry {
             category: .filesystem,
             make: { _ in ListDirectoryTool() }
         ),
+        // Shell
         Definition(
             id: "shell.run",
             name: "run_shell",
-            description: "Run a shell command (requires user confirmation each time).",
+            description: "Run a shell command. No confirmation prompt by default.",
             category: .shell,
             make: { _ in ShellTool() }
         ),
+        Definition(
+            id: "shell.applescript",
+            name: "run_applescript",
+            description: "Run an AppleScript to control any Mac app (Finder, Mail, Messages, Calendar, Music, Safari, …).",
+            category: .apple,
+            make: { _ in AppleScriptTool() }
+        ),
+        // System
+        Definition(
+            id: "system.control",
+            name: "system_control",
+            description: "Volume, dark mode, Do Not Disturb, sleep, lock, logout, quit apps.",
+            category: .system,
+            make: { _ in SystemControlTool() }
+        ),
+        Definition(
+            id: "system.clipboard",
+            name: "clipboard",
+            description: "Get or set the system clipboard text.",
+            category: .system,
+            make: { _ in ClipboardTool() }
+        ),
+        Definition(
+            id: "system.open",
+            name: "open",
+            description: "Launch an app by name, open a file path, or open a URL.",
+            category: .system,
+            make: { _ in OpenAppTool() }
+        ),
+        Definition(
+            id: "system.notify",
+            name: "notify",
+            description: "Post a macOS user notification to Notification Center.",
+            category: .system,
+            make: { _ in NotificationTool() }
+        ),
+        // Export
         Definition(
             id: "export.chat",
             name: "export_chat",
@@ -76,7 +114,7 @@ final class ToolRegistry {
     ]
 
     func isEnabled(_ id: String) -> Bool {
-        // Default: all tools enabled. Set false explicitly to disable.
+        // All tools default to ON (full admin).
         if defaults.object(forKey: Self.enabledKeyPrefix + id) == nil { return true }
         return defaults.bool(forKey: Self.enabledKeyPrefix + id)
     }
@@ -85,17 +123,18 @@ final class ToolRegistry {
         defaults.set(enabled, forKey: Self.enabledKeyPrefix + id)
     }
 
-    /// Build the enabled Tool instances for a chat.
     func activeTools(for chat: ChatEntity) -> [any Tool] {
         all.filter { isEnabled($0.id) }.map { $0.make(chat) }
     }
 }
 
 extension ToolRegistry.Category {
-    var label: String {
+    var categoryLabel: String {
         switch self {
         case .filesystem: return "Files"
         case .shell: return "Shell"
+        case .system: return "System"
+        case .apple: return "AppleScript"
         case .export: return "Export"
         }
     }

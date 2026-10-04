@@ -2,9 +2,10 @@
 //  PathGuard.swift
 //  SiriClone
 //
-//  Path resolution and allowlist enforcement for Tools. Resolves ~ and env
-//  variables, expands symlinks, and rejects writes to sensitive locations
-//  unless the user has explicitly allowed them.
+//  Path resolution and allowlist enforcement for Tools. By default every
+//  path is permitted (SiriClone runs unsandboxed and the user wants full
+//  admin). The allowlist remains as an opt-in guardrail that can be turned
+//  on from Settings → Tools.
 //
 
 import Foundation
@@ -18,6 +19,8 @@ enum SiriToolError: LocalizedError {
     case userCancelled(String)
     case invalidArgument(String)
     case ioError(String, underlying: Error)
+    case applescriptFailed(String, underlying: Error?)
+    case systemError(String)
 
     var errorDescription: String? {
         switch self {
@@ -29,14 +32,16 @@ enum SiriToolError: LocalizedError {
         case .userCancelled(let m): return m
         case .invalidArgument(let m): return m
         case .ioError(let p, let u): return "I/O error on \(p): \(u.localizedDescription)"
+        case .applescriptFailed(let s, let u): return u.map { "AppleScript failed: \(s) (\($0.localizedDescription))" } ?? "AppleScript failed: \(s)"
+        case .systemError(let m): return m
         }
     }
 }
 
 enum PathGuard {
 
-    /// Resolve ~, $HOME, $ENV and return an absolute path. Does NOT follow
-    /// symlinks yet — `assertAllowed` does that.
+    /// Resolve ~, $HOME, etc. into an absolute path. Does NOT follow
+    /// symlinks — callers can do that with URL.resolvingSymlinksInPath().
     static func resolve(_ path: String) -> String {
         var p = path
         let home = NSHomeDirectory()
@@ -47,17 +52,20 @@ enum PathGuard {
         } else if !p.hasPrefix("/") && !p.hasPrefix("~") {
             p = home + "/" + p
         }
-        // Expand $HOME etc.
         p = (p as NSString).expandingTildeInPath
         p = NSString(string: p).expandingTildeInPath
         return p
     }
 
-    /// Expand symlinks and ensure the path is inside an allowed directory.
-    /// Allowed list is `~/Documents`, `~/Desktop`, `~/Downloads`, plus anything
-    /// the user has explicitly added in Settings → Tools → Path Allowlist.
+    /// When `tool.path.restrict` is OFF (default) every path is allowed —
+    /// full system admin. When ON, only paths inside the default roots
+    /// (~/Documents, ~/Desktop, ~/Downloads, iCloud Drive) plus the
+    /// user's custom allowlist are permitted.
     static func assertAllowed(_ path: String) throws {
-        let fm = FileManager.default
+        if !UserDefaults.standard.bool(forKey: "tool.path.restrict") {
+            return
+        }
+
         let url = URL(fileURLWithPath: path)
         let resolved = url.resolvingSymlinksInPath().path
 
@@ -66,10 +74,9 @@ enum PathGuard {
             home + "/Documents",
             home + "/Desktop",
             home + "/Downloads",
-            home + "/Library/Mobile Documents/com~apple~CloudDocs",  // iCloud Drive
+            home + "/Library/Mobile Documents/com~apple~CloudDocs",
         ]
 
-        // Custom allowlist from settings, one path per line.
         var customRoots: [String] = []
         if let raw = UserDefaults.standard.string(forKey: "tool.path.allowlist") {
             customRoots = raw
@@ -84,10 +91,9 @@ enum PathGuard {
             return
         }
 
-        // If the parent directory exists and is itself inside an allowed root, allow it.
         let parent = (resolved as NSString).deletingLastPathComponent
         if parent != resolved,
-           fm.fileExists(atPath: parent),
+           FileManager.default.fileExists(atPath: parent),
            allRoots.contains(where: { parent.hasPrefix($0 + "/") || parent == $0 })
         {
             return

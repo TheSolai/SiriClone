@@ -98,6 +98,11 @@
 		F0000001BBBB0006BBBB0006 /* ListDirectoryTool.swift in Sources */ = {isa = PBXBuildFile; fileRef = F0000001AAAA0006AAAA0006 /* ListDirectoryTool.swift */; };
 		F0000001BBBB0007BBBB0007 /* ShellTool.swift in Sources */ = {isa = PBXBuildFile; fileRef = F0000001AAAA0007AAAA0007 /* ShellTool.swift */; };
 		F0000001BBBB0008BBBB0008 /* ExportChatTool.swift in Sources */ = {isa = PBXBuildFile; fileRef = F0000001AAAA0008AAAA0008 /* ExportChatTool.swift */; };
+	F0000001BBBB000D000D /* AppleScriptTool.swift in Sources */ = {isa = PBXBuildFile; fileRef = F0000001AAAA000D000D /* AppleScriptTool.swift */; };
+	F0000001BBBB000E000E /* SystemControlTool.swift in Sources */ = {isa = PBXBuildFile; fileRef = F0000001AAAA000E000E /* SystemControlTool.swift */; };
+	F0000001BBBB000F000F /* ClipboardTool.swift in Sources */ = {isa = PBXBuildFile; fileRef = F0000001AAAA000F000F /* ClipboardTool.swift */; };
+	F0000001BBBB00100010 /* OpenAppTool.swift in Sources */ = {isa = PBXBuildFile; fileRef = F0000001AAAA00100010 /* OpenAppTool.swift */; };
+	F0000001BBBB00110011 /* NotificationTool.swift in Sources */ = {isa = PBXBuildFile; fileRef = F0000001AAAA00110011 /* NotificationTool.swift */; };
 	F0000001BBBB000BBBBB000B /* WindowAccessor.swift in Sources */ = {isa = PBXBuildFile; fileRef = F0000001AAAA000BBBBB000B /* WindowAccessor.swift */; };
 	F0000001BBBB0009BBBB0009 /* V3UpdateCoordinator.swift in Sources */ = {isa = PBXBuildFile; fileRef = F0000001AAAA0009AAAA0009 /* V3UpdateCoordinator.swift */; };
 	F0000001BBBB000AAAAA000A /* APIError.swift in Sources */ = {isa = PBXBuildFile; fileRef = F0000001AAAA000AAAAA000A /* APIError.swift */; };
@@ -227,6 +232,11 @@
 		F0000001AAAA0006AAAA0006 /* ListDirectoryTool.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ListDirectoryTool.swift; sourceTree = "<group>"; };
 		F0000001AAAA0007AAAA0007 /* ShellTool.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ShellTool.swift; sourceTree = "<group>"; };
 		F0000001AAAA0008AAAA0008 /* ExportChatTool.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ExportChatTool.swift; sourceTree = "<group>"; };
+	F0000001AAAA000D000D /* AppleScriptTool.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppleScriptTool.swift; sourceTree = "<group>"; };
+	F0000001AAAA000E000E /* SystemControlTool.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SystemControlTool.swift; sourceTree = "<group>"; };
+	F0000001AAAA000F000F /* ClipboardTool.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ClipboardTool.swift; sourceTree = "<group>"; };
+	F0000001AAAA00100010 /* OpenAppTool.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OpenAppTool.swift; sourceTree = "<group>"; };
+	F0000001AAAA00110011 /* NotificationTool.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NotificationTool.swift; sourceTree = "<group>"; };
 	F0000001AAAA000BBBBB000B /* WindowAccessor.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = macai/UI/WindowAccessor.swift; sourceTree = SOURCE_ROOT; };
 	/* End PBXFileReference section */
 
@@ -537,6 +547,11 @@
 				F0000001AAAA0006AAAA0006 /* ListDirectoryTool.swift */,
 				F0000001AAAA0007AAAA0007 /* ShellTool.swift */,
 				F0000001AAAA0008AAAA0008 /* ExportChatTool.swift */,
+			F0000001AAAA000D000D /* AppleScriptTool.swift */,
+			F0000001AAAA000E000E /* SystemControlTool.swift */,
+			F0000001AAAA000F000F /* ClipboardTool.swift */,
+			F0000001AAAA00100010 /* OpenAppTool.swift */,
+			F0000001AAAA00110011 /* NotificationTool.swift */,
 			);
 			path = Tools;
 			sourceTree = "<group>";
@@ -761,6 +776,11 @@
 		F0000001BBBB0006BBBB0006 /* ListDirectoryTool.swift in Sources */,
 		F0000001BBBB0007BBBB0007 /* ShellTool.swift in Sources */,
 		F0000001BBBB0008BBBB0008 /* ExportChatTool.swift in Sources */,
+		F0000001BBBB000D000D /* AppleScriptTool.swift in Sources */,
+		F0000001BBBB000E000E /* SystemControlTool.swift in Sources */,
+		F0000001BBBB000F000F /* ClipboardTool.swift in Sources */,
+		F0000001BBBB00100010 /* OpenAppTool.swift in Sources */,
+		F0000001BBBB00110011 /* NotificationTool.swift in Sources */,
 		F0000001BBBB0009BBBB0009 /* V3UpdateCoordinator.swift in Sources */,
 		F0000001BBBB000AAAAA000A /* APIError.swift in Sources */,
 		F0000001BBBB000BBBBB000B /* WindowAccessor.swift in Sources */,

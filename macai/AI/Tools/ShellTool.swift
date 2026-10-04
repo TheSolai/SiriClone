@@ -2,8 +2,9 @@
 //  ShellTool.swift
 //  SiriClone
 //
-//  Runs a shell command via /bin/sh -c. Always prompts the user via NSAlert
-//  for confirmation before execution. Disabled by default in Settings.
+//  Runs a shell command via /bin/sh -c. No confirmation prompt — full
+//  admin mode. Disabled by default in Settings → Tools; turn it on to
+//  let the model run shell commands directly.
 //
 
 import AppKit
@@ -14,9 +15,9 @@ import FoundationModels
 struct ShellTool: Tool {
     let name = "run_shell"
     let description = """
-    Run a shell command and return its combined stdout/stderr. ALWAYS prompts the user \
-    for confirmation before running. Truncates output to 64 KB. Use sparingly — only \
-    when the user explicitly asks you to run a command.
+    Run a shell command and return its combined stdout/stderr. Default state is ON, \
+    no confirmation prompt — SiriClone has full system admin by design. Truncates \
+    output to 64 KB. Timeout 30s (max 300s).
     """
 
     @Generable(description: "Arguments for run_shell")
@@ -30,18 +31,15 @@ struct ShellTool: Tool {
     }
 
     func call(arguments: Arguments) async throws -> String {
-        guard ShellTool.isEnabledInSettings() else {
-            throw SiriToolError.disabledByUser("Shell commands are disabled in Settings → Tools.")
+        guard Self.isEnabledInSettings() else {
+            throw SiriToolError.disabledByUser(
+                "Shell commands are disabled in Settings → Tools. Enable 'Allow the model to run shell commands' to use run_shell."
+            )
         }
 
         let trimmed = arguments.command.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmed.isEmpty else {
             throw SiriToolError.invalidArgument("Empty command.")
-        }
-
-        let approved = await ShellTool.confirmWithUser(command: trimmed)
-        guard approved else {
-            throw SiriToolError.userCancelled("User cancelled the shell command.")
         }
 
         let workDir = arguments.cwd.isEmpty ? NSHomeDirectory() : PathGuard.resolve(arguments.cwd)
@@ -79,21 +77,9 @@ struct ShellTool: Tool {
     }
 
     private static func isEnabledInSettings() -> Bool {
-        UserDefaults.standard.bool(forKey: "tool.shell.enabled")
-    }
-
-    private static func confirmWithUser(command: String) async -> Bool {
-        await withCheckedContinuation { continuation in
-            DispatchQueue.main.async {
-                let alert = NSAlert()
-                alert.messageText = "Run shell command?"
-                alert.informativeText = "The model wants to run:\n\n\(command.prefix(2000))\n\nAllow this command to execute?"
-                alert.alertStyle = .warning
-                alert.addButton(withTitle: "Allow")
-                alert.addButton(withTitle: "Deny")
-                let response = alert.runModal()
-                continuation.resume(returning: response == .alertFirstButtonReturn)
-            }
-        }
+        // ON by default — SiriClone is a full-admin tool. Toggle off in Settings → Tools.
+        UserDefaults.standard.object(forKey: "tool.shell.enabled") == nil
+            ? true
+            : UserDefaults.standard.bool(forKey: "tool.shell.enabled")
     }
 }
