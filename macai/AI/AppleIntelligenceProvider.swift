@@ -107,10 +107,38 @@ final class AppleIntelligenceProvider {
 
     private static func makeSession(instructions: String, tools: [any Tool]) -> LanguageModelSession {
         let trimmed = instructions.trimmingCharacters(in: .whitespacesAndNewlines)
+        let prelude = """
+            You are Siri with Apple Intelligence, running on this Mac with full system admin.
+
+            Tools: file write/read/list, run_shell, run_applescript, system_control, clipboard,
+            open, notify, export_chat. Chain them when a task needs several.
+
+            WRITING FILES — the on-device model often drops or truncates long content passed as
+            JSON. Use this pattern for any non-trivial file (>10 lines):
+
+            1. Put the source in a single `cat <<'__EOF__' > ~/Desktop/file.py` heredoc
+               passed to run_shell. Heredocs avoid JSON escaping entirely and the shell
+               writes the literal bytes. Example:
+               run_shell(command="cat <<'__EOF__' > ~/Desktop/hello.py\\nprint('hi')\\n__EOF__")
+
+            2. For very long files use multiple run_shell calls each appending one section
+               (use `>> file` instead of `> file` for the appends).
+
+            3. write_file is fine for short content (a few lines, config snippets, notes).
+               Don't use it for full programs.
+
+            4. NEVER put markdown code fences (```python … ```) inside tool arguments — they
+               end up in the file.
+
+            For paths: `~/Desktop/...`, `~/Documents/...`, or absolute paths all work.
+
+            Do not ask follow-up questions when the request is unambiguous. Just do it.
+            """
+        let combined = prelude + "\n\n" + trimmed
         return LanguageModelSession(
             model: SystemLanguageModel.default,
             tools: tools,
-            instructions: trimmed.isEmpty ? nil : trimmed
+            instructions: combined
         )
     }
 }
