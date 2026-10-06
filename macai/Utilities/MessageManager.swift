@@ -6,7 +6,12 @@
 //  Builds a fresh `LanguageModelSession` (rebuilds on system message change)
 //  and streams tokens into Core Data while the user watches.
 //
-//  Replaces the old multi-provider APIService-based MessageManager.
+//  On top of the live stream we run a `ResponsePostProcessor` that detects
+//  code blocks the model emits in markdown fences and writes them to paths
+//  the user mentioned. This works around the on-device model's tendency
+//  to drop or truncate long content passed through write_file's JSON-
+//  serialized argument — the model reliably puts long code into fenced
+//  blocks inside its reply text, and we extract + persist that.
 //
 
 import CoreData
@@ -24,7 +29,7 @@ final class MessageManager: ObservableObject {
         var errorDescription: String? {
             switch self {
             case .unsupported:
-                return "Apple Intelligence requires macOS 15 or later on Apple Silicon."
+                return "Apple Intelligence requires macOS 26 or later on Apple Silicon."
             case .emptyResponse:
                 return "Apple Intelligence returned no content."
             case .sessionFailed(let inner):
@@ -63,7 +68,6 @@ final class MessageManager: ObservableObject {
             return
         }
 
-        // Rebuild session if the persona/system message changed since last turn.
         provider.refreshSystemMessageIfNeeded(for: chat)
 
         // Persist the user message immediately.
@@ -96,6 +100,9 @@ final class MessageManager: ObservableObject {
         chat.waitingForResponse = true
         chat.objectWillChange.send()
 
+        // Remember the prompt so the post-processor can infer a save target
+        // after streaming finishes.
+        let promptForPostProcess = message
         let stream = provider.streamTurn(prompt: message)
         streamTask = Task { [weak self] in
             guard let self else { return }
@@ -120,8 +127,10 @@ final class MessageManager: ObservableObject {
                             accumulated: accumulated
                         )
                     case .toolCall, .toolResult:
-                        // Tool call visibility in the UI is Phase 2. For now we
-                        // just let the model resume generation silently.
+                        continue
+                    case .fileSaved:
+                        // Surfaced by post-processor below, not by the
+                        // live stream.
                         continue
                     }
                 }
@@ -148,6 +157,59 @@ final class MessageManager: ObservableObject {
             Task { @MainActor in
                 self.collapseIfEmpty(assistantMessage: assistantMessage, accumulated: accumulated)
                 self.save()
+
+                // After streaming, scan the model's text for code blocks
+                // and auto-save to the path the user mentioned. The 3B
+                // Foundation Model reliably emits long code in markdown
+                // fences inside its reply, so this is the durable
+                // instruction-following path for file creation.
+                if !accumulated.isEmpty {
+                    let blocks = ResponsePostProcessor.extractCodeBlocks(from: accumulated)
+                    if !blocks.isEmpty,
+                       let target = ResponsePostProcessor.detectSaveTarget(userMessage: promptForPostProcess)
+                    {
+                        let fm = FileManager.default
+                        for (i, block) in blocks.enumerated() {
+                            let ext = ResponsePostProcessor.fileExtension(for: block.language)
+                            let baseStem: String
+                            if let explicit = ResponsePostProcessor.extractFilenameHint(promptForPostProcess) {
+                                baseStem = (explicit as NSString).deletingPathExtension
+                            } else if i == 0 {
+                                baseStem = "untitled"
+                            } else {
+                                baseStem = "untitled_\(i + 1)"
+                            }
+                            let fileName = blocks.count > 1
+                                ? "\(baseStem)_\(i + 1).\(ext)"
+                                : "\(baseStem).\(ext)"
+                            let path = (target.directory as NSString)
+                                .appendingPathComponent(fileName)
+                            do {
+                                try fm.createDirectory(
+                                    at: URL(fileURLWithPath: target.directory),
+                                    withIntermediateDirectories: true
+                                )
+                                try block.content.write(to: URL(fileURLWithPath: path), atomically: true, encoding: .utf8)
+                                UserDefaults.standard.set(fileName, forKey: "tool.last_saved_filename")
+                                // Append a small auto-save note to the bubble
+                                // body so the user sees what happened.
+                                let note = "\n\n_📄 auto-saved to `\(path)`_"
+                                assistantMessage.body = (assistantMessage.body ?? "") + note
+                                NotificationCenter.default.post(
+                                    name: NSNotification.Name("SiriCloneFileSaved"),
+                                    object: nil,
+                                    userInfo: ["path": path, "bytes": block.content.utf8.count]
+                                )
+                                print("[chunk saved] \(path) (\(block.content.utf8.count) bytes)")
+                            } catch {
+                                assistantMessage.body = (assistantMessage.body ?? "")
+                                    + "\n\n_save failed: \(error.localizedDescription)_"
+                            }
+                        }
+                        self.save()
+                    }
+                }
+
                 self.postCompletionNotification(for: chat, body: accumulated)
                 completion(.success(()))
             }

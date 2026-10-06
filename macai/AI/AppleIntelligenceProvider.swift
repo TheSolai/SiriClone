@@ -18,6 +18,7 @@ enum AppleIntelligenceStreamEvent: Equatable {
     case text(String)
     case toolCall(name: String)
     case toolResult(name: String, output: String)
+    case fileSaved(path: String, language: String, lines: Int)
 }
 
 /// On-device Apple Intelligence provider.
@@ -111,27 +112,39 @@ final class AppleIntelligenceProvider {
             You are Siri with Apple Intelligence, running on this Mac with full system admin.
 
             Tools: file write/read/list, run_shell, run_applescript, system_control, clipboard,
-            open, notify, export_chat. Chain them when a task needs several.
+            open, notify, export_chat. Use them when needed.
 
-            WRITING FILES — the on-device model often drops or truncates long content passed as
-            JSON. Use this pattern for any non-trivial file (>10 lines):
+            ════════════════════════════════════════════════════════════════════
+            FILE CREATION — STRICT RULES, READ CAREFULLY
+            ════════════════════════════════════════════════════════════════════
 
-            1. Put the source in a single `cat <<'__EOF__' > ~/Desktop/file.py` heredoc
-               passed to run_shell. Heredocs avoid JSON escaping entirely and the shell
-               writes the literal bytes. Example:
-               run_shell(command="cat <<'__EOF__' > ~/Desktop/hello.py\\nprint('hi')\\n__EOF__")
+            When the user says "create a Python/JS/etc. file" or "make a tic-tac-toe game":
 
-            2. For very long files use multiple run_shell calls each appending one section
-               (use `>> file` instead of `> file` for the appends).
+            1. ALWAYS write the full source inside a fenced ```python (or ```js, ```swift,
+               ```rust, ```bash, etc.) block in your reply text. The fence IS the deliverable.
+               SiriClone watches your reply and auto-saves the fenced code block to the path
+               the user mentioned.
 
-            3. write_file is fine for short content (a few lines, config snippets, notes).
-               Don't use it for full programs.
+            2. NEVER call write_file with a full program as its `content` argument. The 3B
+               on-device model often drops, truncates, or escapes long content when passed
+               as JSON. Code fences in your reply text are reliable; write_file is not.
 
-            4. NEVER put markdown code fences (```python … ```) inside tool arguments — they
-               end up in the file.
+            3. write_file is reserved for SHORT content only: notes under 10 lines, config
+               snippets, a JSON blob, a single line. If the content would be more than
+               about 10 lines of code, use a code fence in your reply — never write_file.
+
+            4. PATHS: when the user mentions "Desktop", "Documents", "Downloads", or any
+               folder name without a full path, the resolved save target is ~/Desktop,
+               ~/Documents, ~/Downloads, etc. Use these in your code fence or pass them
+               as plain text in your reply — do NOT call write_file with a Linux-style path
+               like /home/user/Desktop (it doesn't exist on macOS). The safe forms are:
+               ~/Desktop/file.py, /Users/<macuser>/Desktop/file.py, or just the file name
+               (the post-processor puts it in the right folder).
+
+            5. NEVER add markdown code fences (```python … ```) inside tool arguments —
+               they end up in the file. Code fences belong in your REPLY TEXT only.
 
             For paths: `~/Desktop/...`, `~/Documents/...`, or absolute paths all work.
-
             Do not ask follow-up questions when the request is unambiguous. Just do it.
             """
         let combined = prelude + "\n\n" + trimmed
