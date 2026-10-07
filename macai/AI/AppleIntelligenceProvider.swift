@@ -42,15 +42,32 @@ final class AppleIntelligenceProvider: ChatProvider {
             let task = Task {
                 do {
                     let stream = session.streamResponse(to: prompt)
+                    var lastText = ""
                     for try await snapshot in stream {
                         if Task.isCancelled {
                             continuation.finish(throwing: CancellationError())
                             return
                         }
                         let text = snapshot.content
-                        if !text.isEmpty {
-                            continuation.yield(.text(text))
+                        // Foundation Models yields CUMULATIVE snapshots —
+                        // each snapshot.content is the full text so far,
+                        // not a delta. Yield only the new suffix so the
+                        // chat bubble doesn't render the same prefix
+                        // repeatedly.
+                        let delta: String
+                        if text.count >= lastText.count, text.hasPrefix(lastText) {
+                            delta = String(text.dropFirst(lastText.count))
+                        } else if text.count > lastText.count {
+                            // Defensive fallback if prefix doesn't match
+                            // (shouldn't happen, but don't drop content).
+                            delta = text
+                        } else {
+                            delta = ""
                         }
+                        if !delta.isEmpty {
+                            continuation.yield(.text(delta))
+                        }
+                        lastText = text
                     }
                     continuation.finish()
                 } catch is CancellationError {
