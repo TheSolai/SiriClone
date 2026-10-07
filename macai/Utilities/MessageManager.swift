@@ -100,6 +100,17 @@ final class MessageManager: ObservableObject {
 
         provider.refreshSystemMessageIfNeeded(targetSystemMessage: chat.persona?.systemMessage ?? chat.systemMessage ?? "")
 
+        // Build attachment context (PDF text + image base64 for vision models).
+        let attachmentContext = self.makeAttachmentContext()
+
+        // Compose the actual prompt: user's words + attachment context.
+        let composedPrompt: String
+        if attachmentContext.textContext.isEmpty {
+            composedPrompt = message
+        } else {
+            composedPrompt = attachmentContext.formattedPrefix() + message
+        }
+
         // Persist the user message immediately.
         let userMessage = MessageEntity(context: viewContext)
         userMessage.id = chat.nextSequence()
@@ -133,7 +144,10 @@ final class MessageManager: ObservableObject {
         // Remember the prompt so the post-processor can infer a save target
         // after streaming finishes.
         let promptForPostProcess = message
-        let stream = provider.streamTurn(prompt: message)
+        let stream = provider.streamTurn(
+            prompt: composedPrompt,
+            attachments: attachmentContext
+        )
         streamTask = Task { [weak self] in
             guard let self else { return }
             defer {
@@ -310,6 +324,19 @@ final class MessageManager: ObservableObject {
     }
 
     // MARK: - Helpers
+
+    /// Build the AttachmentContext from the chat's currently-attached drafts.
+    /// The actual attachment objects live on the ChatView's @State; we receive
+    /// them through `currentAttachments`, which ChatView sets on the
+    /// MessageManager right before each send.
+    var currentAttachments: (images: [ImageAttachment], files: [DocumentAttachment]) = ([], [])
+
+    private func makeAttachmentContext() -> AttachmentContext {
+        AttachmentContext.build(
+            attachedFiles: currentAttachments.files,
+            attachedImages: currentAttachments.images
+        )
+    }
 
     private func save() {
         do { try viewContext.save() } catch {

@@ -46,8 +46,14 @@ protocol ChatProvider: AnyObject {
 
     /// Stream a single user turn. Yields text chunks plus optional
     /// tool-call/tool-result markers. Cancellation propagates via the
-    /// enclosing `Task`.
-    func streamTurn(prompt: String) -> AsyncThrowingStream<ChatStreamEvent, Error>
+    /// enclosing `Task`. Providers with native multimodal support (Local LLM
+    /// with vision models) include images from the attachments; text-only
+    /// providers (Apple Intelligence) ignore them since MessageManager has
+    /// already prepended extracted PDF content to the prompt.
+    func streamTurn(
+        prompt: String,
+        attachments: AttachmentContext
+    ) -> AsyncThrowingStream<ChatStreamEvent, Error>
 
     /// Stream plain text only (no tool events). Used by chat-name
     /// generation.

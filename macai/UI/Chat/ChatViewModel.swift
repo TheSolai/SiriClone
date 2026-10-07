@@ -116,7 +116,14 @@ final class ChatViewModel: NSObject, ObservableObject, NSFetchedResultsControlle
     }
 
     @MainActor
-    func sendMessageStream(_ message: String, contextSize: Int, completion: @escaping (Result<Void, Error>) -> Void) {
+    func sendMessageStream(
+        _ message: String,
+        contextSize: Int,
+        attachedImages: [ImageAttachment] = [],
+        attachedFiles: [DocumentAttachment] = [],
+        completion: @escaping (Result<Void, Error>) -> Void
+    ) {
+        messageManager.currentAttachments = (attachedImages, attachedFiles)
         messageManager.sendMessageStream(message, in: chat, contextSize: contextSize) { [weak self] result in
             switch result {
             case .success:

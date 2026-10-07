@@ -106,6 +106,7 @@
 	F0000001EEEE0012EEEE0012 /* ResponsePostProcessor.swift in Sources */ = {isa = PBXBuildFile; fileRef = F0000001DDDD0012DDDD0012 /* ResponsePostProcessor.swift */; };
 	F0000001BBBB00200020 /* ChatProvider.swift in Sources */ = {isa = PBXBuildFile; fileRef = F0000001AAAA00200020 /* ChatProvider.swift */; };
 	F0000001BBBB00210021 /* LocalLLMProvider.swift in Sources */ = {isa = PBXBuildFile; fileRef = F0000001AAAA00210021 /* LocalLLMProvider.swift */; };
+	F0000001BBBB00230023 /* AttachmentContext.swift in Sources */ = {isa = PBXBuildFile; fileRef = F0000001AAAA00230023 /* AttachmentContext.swift */; };
 	F0000001BBBB00220022 /* TabModelsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = F0000001AAAA00220022 /* TabModelsView.swift */; };
 	F0000001BBBB000BBBBB000B /* WindowAccessor.swift in Sources */ = {isa = PBXBuildFile; fileRef = F0000001AAAA000BBBBB000B /* WindowAccessor.swift */; };
 	F0000001BBBB0009BBBB0009 /* V3UpdateCoordinator.swift in Sources */ = {isa = PBXBuildFile; fileRef = F0000001AAAA0009AAAA0009 /* V3UpdateCoordinator.swift */; };
@@ -244,6 +245,7 @@
 	F0000001DDDD0012DDDD0012 /* ResponsePostProcessor.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ResponsePostProcessor.swift; sourceTree = "<group>"; };
 	F0000001AAAA00200020 /* ChatProvider.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ChatProvider.swift; sourceTree = "<group>"; };
 	F0000001AAAA00210021 /* LocalLLMProvider.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LocalLLMProvider.swift; sourceTree = "<group>"; };
+	F0000001AAAA00230023 /* AttachmentContext.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AttachmentContext.swift; sourceTree = "<group>"; };
 	F0000001AAAA00220022 /* TabModelsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TabModelsView.swift; sourceTree = "<group>"; };
 	F0000001AAAA000BBBBB000B /* WindowAccessor.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = macai/UI/WindowAccessor.swift; sourceTree = SOURCE_ROOT; };
 	/* End PBXFileReference section */
@@ -543,6 +545,7 @@
 				F0000001AAAA0001AAAA0001 /* AppleIntelligenceProvider.swift */,
 			F0000001AAAA00200020 /* ChatProvider.swift */,
 			F0000001AAAA00210021 /* LocalLLMProvider.swift */,
+			F0000001AAAA00230023 /* AttachmentContext.swift */,
 				F0000001AAAA0002AAAA0002 /* ToolRegistry.swift */,
 				F0000001AAAA0003AAAA0003 /* PathGuard.swift */,
 				F0000001CCCC0001CCCC0001 /* Tools */,
@@ -796,6 +799,7 @@
 		F0000001EEEE0012EEEE0012 /* ResponsePostProcessor.swift in Sources */,
 		F0000001BBBB00200020 /* ChatProvider.swift in Sources */,
 		F0000001BBBB00210021 /* LocalLLMProvider.swift in Sources */,
+		F0000001BBBB00230023 /* AttachmentContext.swift in Sources */,
 		F0000001BBBB00220022 /* TabModelsView.swift in Sources */,
 		F0000001BBBB0009BBBB0009 /* V3UpdateCoordinator.swift in Sources */,
 		F0000001BBBB000AAAAA000A /* APIError.swift in Sources */,

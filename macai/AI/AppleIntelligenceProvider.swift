@@ -36,7 +36,21 @@ final class AppleIntelligenceProvider: ChatProvider {
     /// Streams a single user turn. Yields text chunks (and tool-call /
     /// tool-result markers) as the model generates them. Cancellation
     /// propagates via Task cancellation.
-    func streamTurn(prompt: String) -> AsyncThrowingStream<ChatStreamEvent, Error> {
+    func streamTurn(
+        prompt: String,
+        attachments: AttachmentContext = .empty
+    ) -> AsyncThrowingStream<ChatStreamEvent, Error> {
+        // Apple Intelligence is text-only. Attachment text (PDF text,
+        // image metadata) is already prepended to `prompt` by MessageManager
+        // via AttachmentContext.formattedPrefix(); we ignore the parameter
+        // beyond that. Foundation Models can't ingest images directly.
+        return streamTurnImpl(prompt: prompt)
+    }
+
+    /// Internal entry point that takes a fully-formed prompt. Public
+    /// streamTurn delegates here so callers can pass a prompt with the
+    /// attachment prefix already composed.
+    private func streamTurnImpl(prompt: String) -> AsyncThrowingStream<ChatStreamEvent, Error> {
         let session = self.session
         return AsyncThrowingStream { continuation in
             let task = Task {

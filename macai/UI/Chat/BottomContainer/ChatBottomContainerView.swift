@@ -109,16 +109,29 @@ struct ChatBottomContainerView: View {
                     onExpandedStateChange?(isExpanded)
                 }
             }) {
-                HStack {
+                HStack(spacing: 6) {
+                    Image(systemName: "person.crop.circle")
+                        .font(.system(size: 13))
                     Text(chat.persona?.name ?? "Select Assistant")
-                        .font(.caption)
-                    Image(systemName: isExpanded ? "chevron.down" : "chevron.right")
-                        .font(.caption)
+                        .font(.system(size: 12, weight: .medium))
+                    Image(systemName: isExpanded ? "chevron.down" : "chevron.up")
+                        .font(.system(size: 11))
                 }
+                .padding(.horizontal, 10)
+                .padding(.vertical, 4)
+                .background(
+                    Capsule()
+                        .fill(Color(NSColor.windowBackgroundColor).opacity(0.9))
+                )
+                .overlay(
+                    Capsule()
+                        .stroke(Color.secondary.opacity(0.3), lineWidth: 1)
+                )
             }
             .buttonStyle(PlainButtonStyle())
-            .padding(.horizontal)
-            .offset(y: -16)
+            .help("Switch agent / persona")
+            .padding(.trailing, 12)
+            .offset(y: -10)
         }
 
     }

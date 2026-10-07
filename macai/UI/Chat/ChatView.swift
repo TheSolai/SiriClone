@@ -22,7 +22,7 @@ struct ChatView: View {
     @State private var editSystemMessage: Bool = false
     @State private var attachedImages: [ImageAttachment] = []
     @State private var attachedFiles: [DocumentAttachment] = []
-    @State private var isBottomContainerExpanded = false
+    @State private var isBottomContainerExpanded = true  // Show persona/agent selector by default
     @State private var renderTime: Double = 0
     @State private var reasoningStartTimes: [NSManagedObjectID: Date] = [:]
     @State private var reasoningDurations: [NSManagedObjectID: TimeInterval] = [:]
@@ -63,11 +63,14 @@ struct ChatView: View {
         self._attachedFiles = State(initialValue: attachmentSnapshot.files)
     }
 
-    /// Apple Intelligence doesn't ingest images/PDFs natively in this build.
-    /// These gates are hard-coded off so the chat input doesn't pretend to
-    /// support them.
-    private var pdfUploadsAllowed: Bool { false }
-    private var imageUploadsAllowed: Bool { false }
+    /// Image and PDF uploads are always allowed. How the model ingests them
+    /// depends on the active provider: Local LLM gets vision + PDF text via
+    /// OpenAI multimodal format; Apple Intelligence gets text-only summaries
+    /// (PDF text via PDFKit, image dimensions/format description). The chat
+    /// input does not pretend to handle attachments the model can't see — see
+    /// MessageManager.injectAttachmentContext for the actual content path.
+    private var pdfUploadsAllowed: Bool { true }
+    private var imageUploadsAllowed: Bool { true }
     private var imageGenerationSupported: Bool { false }
 
     private var isInferenceInProgress: Bool {

@@ -32,7 +32,7 @@ class ChatLogicHandler: ObservableObject {
         guard !chat.waitingForResponse, !isStreaming else { return }
         guard chatViewModel.canSendMessage else {
             currentError = ErrorMessage(
-                type: .noApiService("No API service selected. Select the API service to send your first message"),
+                type: .noApiService("Cannot send: no message manager. Restart the app."),
                 timestamp: Date()
             )
             return
@@ -83,18 +83,16 @@ class ChatLogicHandler: ObservableObject {
         saveNewMessageInStore(with: messageBody)
         userIsScrolling = false
 
-        if chat.apiService?.useStreamResponse ?? false {
-            sendStreamMessage(messageBody)
-        } else {
-            sendRegularMessage(messageBody)
-        }
+        // Always stream — both Apple Intelligence and the local LLM backend use
+    // streaming responses now.
+    sendStreamMessage(messageBody, attachedImages: attachedImages, attachedFiles: attachedFiles)
     }
 
     /// The chat always streams with Apple Intelligence.
     private func sendNonStreamFallback(_ messageBody: String) {}
     
     func selectAndAddImages(completion: @escaping ([ImageAttachment]) -> Void) {
-        guard chat.apiService?.imageUploadsAllowed == true else { return }
+        // Image uploads are always allowed now (apiService is gone).
 
         let panel = NSOpenPanel()
         panel.allowsMultipleSelection = true
@@ -175,12 +173,18 @@ class ChatLogicHandler: ObservableObject {
     
     // MARK: - Private Methods
     
-    private func sendStreamMessage(_ messageBody: String) {
+    private func sendStreamMessage(
+        _ messageBody: String,
+        attachedImages: [ImageAttachment] = [],
+        attachedFiles: [DocumentAttachment] = []
+    ) {
         isStreaming = true
         Task { @MainActor in
             chatViewModel.sendMessageStream(
                 messageBody,
-                contextSize: AppConstants.chatGptContextSize
+                contextSize: AppConstants.chatGptContextSize,
+                attachedImages: attachedImages,
+                attachedFiles: attachedFiles
             ) { result in
                 DispatchQueue.main.async {
                     switch result {
@@ -278,6 +282,7 @@ class ChatLogicHandler: ObservableObject {
     }
 
     private func supportsPDFUploads() -> Bool {
-        return chat.apiService?.pdfUploadsAllowed == true
+        // PDF uploads are always allowed now (apiService is gone).
+        return true
     }
 }

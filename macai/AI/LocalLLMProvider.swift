@@ -69,11 +69,14 @@ final class LocalLLMProvider: ChatProvider {
 
     // MARK: - Streaming entry points
 
-    func streamTurn(prompt: String) -> AsyncThrowingStream<ChatStreamEvent, Error> {
+    func streamTurn(
+        prompt: String,
+        attachments: AttachmentContext = .empty
+    ) -> AsyncThrowingStream<ChatStreamEvent, Error> {
         AsyncThrowingStream { continuation in
             let task = Task {
                 do {
-                    try await self.runTurn(prompt: prompt, continuation: continuation)
+                    try await self.runTurn(prompt: prompt, attachments: attachments, continuation: continuation)
                     continuation.finish()
                 } catch is CancellationError {
                     continuation.finish(throwing: CancellationError())
@@ -103,6 +106,7 @@ final class LocalLLMProvider: ChatProvider {
 
     private func runTurn(
         prompt: String,
+        attachments: AttachmentContext,
         continuation: AsyncThrowingStream<ChatStreamEvent, Error>.Continuation
     ) async throws {
         var messages: [OpenAIMessage] = []
@@ -112,7 +116,17 @@ final class LocalLLMProvider: ChatProvider {
         let prelude = Self.systemPrelude
         let combined = prelude + "\n\n" + personaInstructions.trimmingCharacters(in: .whitespacesAndNewlines)
         messages.append(.system(content: combined))
-        messages.append(.user(content: prompt))
+
+        // User message: multimodal if attachments include images (OpenAI
+        // image_url content parts); text-only otherwise.
+        if !attachments.imagePayloads.isEmpty {
+            messages.append(.userMultimodal(parts: buildMultimodalUserParts(
+                prompt: prompt,
+                attachments: attachments
+            )))
+        } else {
+            messages.append(.user(content: prompt))
+        }
 
         let tools = toolBoxes.map { $0.openAIToolDefinition() }
 
@@ -470,6 +484,26 @@ final class LocalLLMProvider: ChatProvider {
         """
 }
 
+// MARK: - Multimodal helpers
+
+    /// Compose OpenAI multimodal content parts: text prompt + image data URIs.
+    /// The attachment text (PDF text, image metadata) is already in `prompt`
+    /// because MessageManager prepended it; we only add image_url parts here.
+    private func buildMultimodalUserParts(
+        prompt: String,
+        attachments: AttachmentContext
+    ) -> [OpenAIMessagePart] {
+        var parts: [OpenAIMessagePart] = []
+        if !prompt.isEmpty {
+            parts.append(.text(prompt))
+        }
+        for image in attachments.imagePayloads {
+            let dataURI = "data:\(image.mimeType);base64,\(image.base64JPEG)"
+            parts.append(.imageURL(dataURI))
+        }
+        return parts
+    }
+
 // MARK: - Tool box
 
 private protocol AnyLocalToolBox {
@@ -514,6 +548,7 @@ private struct OpenAIRequest: Encodable {
 private indirect enum OpenAIMessage: Encodable {
     case system(content: String)
     case user(content: String)
+    case userMultimodal(parts: [OpenAIMessagePart])
     case assistant(content: String?, toolCalls: [OpenAIToolCall]?)
     case tool(toolCallId: String, content: String)
 
@@ -526,6 +561,9 @@ private indirect enum OpenAIMessage: Encodable {
         case .user(let content):
             try c.encode("user", forKey: .role)
             try c.encode(content, forKey: .content)
+        case .userMultimodal(let parts):
+            try c.encode("user", forKey: .role)
+            try c.encode(parts, forKey: .content)
         case .assistant(let content, let toolCalls):
             try c.encode("assistant", forKey: .role)
             try c.encodeIfPresent(content, forKey: .content)
@@ -539,6 +577,32 @@ private indirect enum OpenAIMessage: Encodable {
 
     enum CodingKeys: String, CodingKey {
         case role, content, toolCalls = "tool_calls", toolCallId = "tool_call_id"
+    }
+}
+
+/// One piece of a multimodal user message. OpenAI supports:
+///
+///   {"type": "text",      "text": "..."}
+///   {"type": "image_url", "image_url": {"url": "data:image/jpeg;base64,..."}}
+private enum OpenAIMessagePart: Encodable {
+    case text(String)
+    case imageURL(String)
+
+    func encode(to encoder: Encoder) throws {
+        var c = encoder.container(keyedBy: CodingKeys.self)
+        switch self {
+        case .text(let t):
+            try c.encode("text", forKey: .type)
+            try c.encode(t, forKey: .text)
+        case .imageURL(let urlString):
+            try c.encode("image_url", forKey: .type)
+            try c.encode(["url": urlString], forKey: .imageURL)
+        }
+    }
+
+    enum CodingKeys: String, CodingKey {
+        case type, text
+        case imageURL = "image_url"
     }
 }
 
