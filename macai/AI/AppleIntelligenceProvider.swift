@@ -11,20 +11,10 @@
 import Foundation
 import FoundationModels
 
-/// Stream element yielded by AppleIntelligenceProvider. Foundation Models
-/// drives tool invocation internally; we surface plain text chunks plus
-/// optional tool-call summaries the chat UI can render.
-enum AppleIntelligenceStreamEvent: Equatable {
-    case text(String)
-    case toolCall(name: String)
-    case toolResult(name: String, output: String)
-    case fileSaved(path: String, language: String, lines: Int)
-}
-
 /// On-device Apple Intelligence provider.
 @available(macOS 26.0, *)
 @MainActor
-final class AppleIntelligenceProvider {
+final class AppleIntelligenceProvider: ChatProvider {
 
     private var session: LanguageModelSession
     private let tools: [any Tool]
@@ -46,7 +36,7 @@ final class AppleIntelligenceProvider {
     /// Streams a single user turn. Yields text chunks (and tool-call /
     /// tool-result markers) as the model generates them. Cancellation
     /// propagates via Task cancellation.
-    func streamTurn(prompt: String) -> AsyncThrowingStream<AppleIntelligenceStreamEvent, Error> {
+    func streamTurn(prompt: String) -> AsyncThrowingStream<ChatStreamEvent, Error> {
         let session = self.session
         return AsyncThrowingStream { continuation in
             let task = Task {
@@ -169,8 +159,8 @@ extension AppleIntelligenceProvider {
 
     /// Rebuild the session if the chat's persona/system message has changed
     /// since the last call.
-    func refreshSystemMessageIfNeeded(for chat: ChatEntity) {
-        let target = chat.persona?.systemMessage ?? chat.systemMessage ?? ""
+    func refreshSystemMessageIfNeeded(targetSystemMessage: String) {
+        let target = targetSystemMessage
         if target != personaInstructions {
             rebuild(instructions: target)
         }

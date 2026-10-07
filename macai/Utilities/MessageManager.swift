@@ -29,18 +29,18 @@ final class MessageManager: ObservableObject {
         var errorDescription: String? {
             switch self {
             case .unsupported:
-                return "Apple Intelligence requires macOS 26 or later on Apple Silicon."
+                return "Selected AI provider requires macOS 26 or later on Apple Silicon."
             case .emptyResponse:
-                return "Apple Intelligence returned no content."
+                return "Model returned no content."
             case .sessionFailed(let inner):
-                return "Apple Intelligence session failed: \(inner.localizedDescription)"
+                return "Provider session failed: \(inner.localizedDescription)"
             }
         }
     }
 
     private let viewContext: NSManagedObjectContext
     private let chat: ChatEntity
-    private var provider: AppleIntelligenceProvider
+    private var provider: any ChatProvider
     private var streamTask: Task<Void, Never>?
     private var cancelRequested = false
     private var lastUpdateTime = Date()
@@ -49,7 +49,37 @@ final class MessageManager: ObservableObject {
     init(viewContext: NSManagedObjectContext, chat: ChatEntity) {
         self.viewContext = viewContext
         self.chat = chat
-        self.provider = AppleIntelligenceProvider.makeForChat(chat)
+        self.provider = Self.makeProvider(for: chat)
+    }
+
+    /// Build the active `ChatProvider` based on the user's settings. Apple
+    /// Intelligence is the default. If the user picked the OpenAI-
+    /// compatible backend, we instantiate `LocalLLMProvider` against the
+    /// configured base URL + model name.
+    @available(macOS 26.0, *)
+    static func makeProvider(for chat: ChatEntity) -> any ChatProvider {
+        let id = UserDefaults.standard.string(forKey: "ai.provider") ?? AIProviderID.appleIntelligence.rawValue
+        let providerID = AIProviderID(rawValue: id) ?? .appleIntelligence
+        let instructions = (chat.persona?.systemMessage ?? chat.systemMessage ?? "")
+
+        switch providerID {
+        case .appleIntelligence:
+            return AppleIntelligenceProvider(instructions: instructions, tools: ToolRegistry.shared.activeTools(for: chat))
+        case .localOpenAI:
+            let baseURLString = UserDefaults.standard.string(forKey: "ai.local.base_url")
+                ?? "http://localhost:11434/v1/chat/completions"
+            let model = UserDefaults.standard.string(forKey: "ai.local.model")
+                ?? "qwen2.5-coder:7b"
+            let apiKey = UserDefaults.standard.string(forKey: "ai.local.api_key")
+            let url = URL(string: baseURLString) ?? URL(string: "http://localhost:11434/v1/chat/completions")!
+            return LocalLLMProvider(
+                endpoint: url,
+                modelName: model,
+                apiKey: apiKey,
+                instructions: instructions,
+                tools: ToolRegistry.shared.activeTools(for: chat)
+            )
+        }
     }
 
     // MARK: - Streaming
@@ -68,7 +98,7 @@ final class MessageManager: ObservableObject {
             return
         }
 
-        provider.refreshSystemMessageIfNeeded(for: chat)
+        provider.refreshSystemMessageIfNeeded(targetSystemMessage: chat.persona?.systemMessage ?? chat.systemMessage ?? "")
 
         // Persist the user message immediately.
         let userMessage = MessageEntity(context: viewContext)

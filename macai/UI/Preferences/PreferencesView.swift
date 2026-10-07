@@ -18,6 +18,11 @@ struct PreferencesView: View {
                     Label("General", systemImage: "gearshape")
                 }
 
+            TabModelsView()
+                .tabItem {
+                    Label("Model", systemImage: "cpu")
+                }
+
             TabToolsView()
                 .tabItem {
                     Label("Tools", systemImage: "wrench.and.screwdriver")
